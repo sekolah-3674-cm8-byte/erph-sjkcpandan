@@ -71,13 +71,13 @@
 
     <!-- Dashboard Rekod -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div>
           <h2 class="text-lg font-bold text-blue-900">Status Penghantaran Mingguan</h2>
           <p class="text-xs text-slate-500">Tarikh akhir penghantaran adalah pada setiap hari Ahad jam 11:59 malam.</p>
         </div>
         
-        <!-- Kawalan Penapis (Minggu & Sesi) -->
+        <!-- Kawalan Penapis (Sesi, Status & Minggu) -->
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
             <label class="text-sm font-semibold">Sesi:</label>
@@ -85,6 +85,15 @@
               <option value="SEMUA">Semua Sesi</option>
               <option value="PAGI">PAGI</option>
               <option value="PETANG">PETANG</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold">Status:</label>
+            <select id="filterStatus" onchange="renderDashboard()" class="border border-slate-300 rounded-lg p-2 font-semibold text-blue-900 bg-blue-50">
+              <option value="SEMUA">Semua Status</option>
+              <option value="Hantar">Hantar</option>
+              <option value="Lewat">Lewat</option>
+              <option value="Belum Hantar">Belum Hantar</option>
             </select>
           </div>
           <div class="flex items-center gap-2">
@@ -219,26 +228,45 @@
     function renderDashboard() {
       const mingguDipilih = document.getElementById("filterMinggu").value;
       const sesiDipilih = document.getElementById("filterSesi").value;
+      const statusDipilih = document.getElementById("filterStatus").value;
       const tbody = document.getElementById("tableBody");
       tbody.innerHTML = "";
       document.getElementById("checkAll").checked = false;
       kemasKiniBarPukal();
 
       // Tapis senarai guru mengikut sesi yang dipilih
-      const guruDitapis = dataGuru.filter(g => {
+      const guruIkutSesi = dataGuru.filter(g => {
         if (sesiDipilih === "SEMUA") return true;
         const sesiGuru = g[3] ? String(g[3]).trim().toUpperCase() : "";
         return sesiGuru === sesiDipilih;
       });
 
       let hantar = 0, lewat = 0, belum = 0;
+      let bilPaparan = 0;
 
-      guruDitapis.forEach((g, index) => {
+      guruIkutSesi.forEach(g => {
         const nama = g[1];
         const jawatan = g[2];
         const sesi = g[3] ? String(g[3]).trim().toUpperCase() : "-";
 
         const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
+
+        // Tentukan status semasa guru & kira statistik keseluruhan sesi
+        let statusSemasa = "Belum Hantar";
+        if (rekodGuru) {
+          statusSemasa = rekodGuru[4] === "Hantar" ? "Hantar" : "Lewat";
+          if (statusSemasa === "Hantar") hantar++;
+          else lewat++;
+        } else {
+          belum++;
+        }
+
+        // Tapis paparan baris mengikut dropdown Status
+        if (statusDipilih !== "SEMUA" && statusSemasa !== statusDipilih) {
+          return;
+        }
+
+        bilPaparan++;
 
         let badgeSesi = sesi === "PAGI" 
           ? `<span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-100 text-sky-800">PAGI</span>`
@@ -253,7 +281,6 @@
         let checkboxHtml = "";
 
         if (rekodGuru) {
-          const status = rekodGuru[4];
           const linkFail = rekodGuru[3];
           const semakan = rekodGuru[5];
           const penyemak = rekodGuru[6];
@@ -261,11 +288,9 @@
 
           tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
 
-          if (status === "Hantar") {
-            hantar++;
+          if (statusSemasa === "Hantar") {
             badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Hantar</span>`;
           } else {
-            lewat++;
             badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lewat</span>`;
           }
 
@@ -299,14 +324,12 @@
               ${butangPulangkan}
             </div>
           `;
-        } else {
-          belum++;
         }
 
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
             <td class="p-3 text-center admin-col ${adminIC ? '' : 'hidden'}">${checkboxHtml}</td>
-            <td class="p-3 text-slate-500">${index + 1}</td>
+            <td class="p-3 text-slate-500">${bilPaparan}</td>
             <td class="p-3 font-medium text-slate-900">${nama}</td>
             <td class="p-3 text-xs text-slate-600">${jawatan}</td>
             <td class="p-3">${badgeSesi}</td>
@@ -317,6 +340,10 @@
           </tr>
         `;
       });
+
+      if (bilPaparan === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500 italic">Tiada rekod guru ditemui bagi tapisan yang dipilih.</td></tr>`;
+      }
 
       document.getElementById("statHantar").innerText = hantar;
       document.getElementById("statLewat").innerText = lewat;
