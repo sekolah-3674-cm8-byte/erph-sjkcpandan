@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Rekod Penghantaran RPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+  <!-- Header -->
+  <header class="bg-blue-900 text-white py-5 shadow-md">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-wide">SISTEM REKOD PENGHANTARAN RPH</h1>
+        <p class="text-blue-200 text-sm">Dashboard Pemantauan & Semakan Mingguan</p>
+      </div>
+      <div id="adminPanel">
+        <button onclick="bukaModalAdmin()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold px-4 py-2 rounded-lg shadow transition">
+          Log Masuk Pentadbir
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Borang Muat Naik Guru -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-lg font-bold text-blue-900 mb-4 border-b pb-2">Penghantaran RPH Guru</h2>
+      <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+          <label class="block text-sm font-medium mb-1">Nama Guru</label>
+          <select id="selectGuru" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+            <option value="">-- Memuatkan senarai --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Minggu Persekolahan</label>
+          <select id="selectMinggu" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+            <option value="">-- Pilih Minggu --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Fail RPH (Excel / PDF)</label>
+          <input type="file" id="fileRPH" accept=".xlsx,.xls,.pdf,.doc,.docx" required class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-slate-50">
+        </div>
+        <div>
+          <button type="submit" id="btnHantar" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
+            Hantar RPH
+          </button>
+        </div>
+      </form>
+      <p id="statusUpload" class="mt-3 text-sm font-medium hidden"></p>
+    </section>
+
+    <!-- Dashboard Rekod -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-blue-900">Status Penghantaran Mingguan</h2>
+          <p class="text-xs text-slate-500">Tarikh akhir penghantaran adalah pada setiap hari Ahad jam 11:59 malam.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-sm font-semibold">Paparan Minggu:</label>
+          <select id="filterMinggu" onchange="renderDashboard()" class="border border-slate-300 rounded-lg p-2 font-semibold text-blue-900 bg-blue-50"></select>
+        </div>
+      </div>
+
+      <!-- Ringkasan Statistik -->
+      <div class="grid grid-cols-3 gap-4 mb-6 text-center">
+        <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+          <p class="text-xs text-emerald-700 font-semibold uppercase">Hantar (Tepat Masa)</p>
+          <p id="statHantar" class="text-2xl font-bold text-emerald-700">0</p>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+          <p class="text-xs text-amber-700 font-semibold uppercase">Lewat (Selepas Ahad)</p>
+          <p id="statLewat" class="text-2xl font-bold text-amber-700">0</p>
+        </div>
+        <div class="bg-rose-50 border border-rose-200 p-3 rounded-lg">
+          <p class="text-xs text-rose-700 font-semibold uppercase">Belum Hantar</p>
+          <p id="statBelum" class="text-2xl font-bold text-rose-700">0</p>
+        </div>
+      </div>
+
+      <!-- Jadual Guru -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700 text-sm border-b">
+              <th class="p-3">Bil</th>
+              <th class="p-3">Nama Guru</th>
+              <th class="p-3">Jawatan</th>
+              <th class="p-3">Status Hantar</th>
+              <th class="p-3">Tarikh / Masa</th>
+              <th class="p-3">Status Semakan</th>
+              <th class="p-3 text-center admin-col hidden">Tindakan Pentadbir</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-200 text-sm">
+            <tr><td colspan="7" class="p-6 text-center text-slate-500">Memuatkan data dari pangkalan data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal Log Masuk Pentadbir -->
+  <div id="modalAdmin" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full mx-4">
+      <h3 class="text-lg font-bold text-slate-800 mb-2">Pengesahan Pentadbir</h3>
+      <p class="text-xs text-slate-500 mb-4">Masukkan No. Kad Pengenalan tanpa sengkang untuk mengaktifkan mod semakan.</p>
+      <input type="password" id="inputIC" placeholder="Contoh: 781010045304" class="w-full border border-slate-300 rounded-lg p-2.5 mb-4">
+      <div class="flex justify-end gap-2">
+        <button onclick="tutupModalAdmin()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>
+        <button onclick="sahkanAdmin()" class="px-4 py-2 text-sm bg-blue-700 text-white font-semibold rounded-lg hover:bg-blue-800">Sahkan</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbztPnFitfaP5kw1NoQk7yi35nQ-W6HYUKu5k-O9W7i4sixlmu07h3GsI278TK3gVeVq/exec";
+    
+    let dataGuru = [];
+    let dataMinggu = [];
+    let dataRekod = [];
+    let adminIC = null;
+
+    // Muat turun data semasa halaman dibuka
+    async function loadData() {
+      try {
+        const res = await fetch(`${WEB_APP_URL}?action=getData`);
+        const json = await res.json();
+        dataGuru = json.guru;
+        dataMinggu = json.minggu;
+        dataRekod = json.rekod;
+
+        isiDropdown();
+        renderDashboard();
+      } catch (err) {
+        alert("Gagal menyambung ke pangkalan data: " + err);
+      }
+    }
+
+    function isiDropdown() {
+      const selGuru = document.getElementById("selectGuru");
+      selGuru.innerHTML = '<option value="">-- Pilih Nama Anda --</option>';
+      dataGuru.forEach(g => {
+        if (g[1]) selGuru.innerHTML += `<option value="${g[1]}">${g[1]}</option>`;
+      });
+
+      const selMinggu = document.getElementById("selectMinggu");
+      const filMinggu = document.getElementById("filterMinggu");
+      selMinggu.innerHTML = '';
+      filMinggu.innerHTML = '';
+      dataMinggu.forEach(m => {
+        if (m[0]) {
+          selMinggu.innerHTML += `<option value="${m[0]}">Minggu ${m[0]}</option>`;
+          filMinggu.innerHTML += `<option value="${m[0]}">Minggu ${m[0]}</option>`;
+        }
+      });
+    }
+
+    function renderDashboard() {
+      const mingguDipilih = document.getElementById("filterMinggu").value;
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+
+      let hantar = 0, lewat = 0, belum = 0;
+
+      dataGuru.forEach((g, index) => {
+        const nama = g[1];
+        const jawatan = g[2];
+        if (!nama) return;
+
+        // Cari rekod guru bagi minggu dipilih (ambil rekod terkini jika hantar lebih sekali)
+        const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
+
+        let badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">Belum Hantar</span>`;
+        let tarikhHantar = "-";
+        let statusSemakan = "-";
+        let tindakanAdmin = "-";
+
+        if (rekodGuru) {
+          const status = rekodGuru[4];
+          const linkFail = rekodGuru[3];
+          const semakan = rekodGuru[5];
+          const penyemak = rekodGuru[6];
+
+          tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
+
+          if (status === "Hantar") {
+            hantar++;
+            badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Hantar</span>`;
+          } else {
+            lewat++;
+            badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lewat</span>`;
+          }
+
+          if (semakan === "Telah Disemak") {
+            statusSemakan = `<span class="text-emerald-700 font-semibold">✔ Disemak (${penyemak})</span>`;
+          } else {
+            statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
+          }
+
+          tindakanAdmin = `
+            <div class="flex items-center justify-center gap-2">
+              <a href="${linkFail}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1 rounded text-xs">Buka RPH</a>
+              ${semakan !== "Telah Disemak" ? `<button onclick="tandaSemak('${mingguDipilih}', '${nama}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-xs">✔ Sahkan</button>` : ''}
+            </div>
+          `;
+        } else {
+          belum++;
+        }
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50">
+            <td class="p-3 text-slate-500">${index + 1}</td>
+            <td class="p-3 font-medium text-slate-900">${nama}</td>
+            <td class="p-3 text-xs text-slate-600">${jawatan}</td>
+            <td class="p-3">${badgeStatus}</td>
+            <td class="p-3 text-xs text-slate-600">${tarikhHantar}</td>
+            <td class="p-3 text-xs">${statusSemakan}</td>
+            <td class="p-3 text-center admin-col ${adminIC ? '' : 'hidden'}">${tindakanAdmin}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("statHantar").innerText = hantar;
+      document.getElementById("statLewat").innerText = lewat;
+      document.getElementById("statBelum").innerText = belum;
+    }
+
+    // Muat Naik Fail RPH
+    document.getElementById("uploadForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const btn = document.getElementById("btnHantar");
+      const statusText = document.getElementById("statusUpload");
+      const file = document.getElementById("fileRPH").files[0];
+
+      btn.disabled = true;
+      btn.innerText = "Sedang Memuat Naik...";
+      statusText.classList.remove("hidden");
+      statusText.className = "mt-3 text-sm font-medium text-blue-700";
+      statusText.innerText = "Sila tunggu, fail sedang dihantar ke Google Drive...";
+
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const base64Data = reader.result.split(",")[1];
+        const payload = {
+          action: "upload",
+          namaGuru: document.getElementById("selectGuru").value,
+          minggu: document.getElementById("selectMinggu").value,
+          fileName: file.name,
+          mimeType: file.type,
+          fileData: base64Data
+        };
+
+        try {
+          const res = await fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          const result = await res.json();
+          if (result.status === "success") {
+            statusText.className = "mt-3 text-sm font-medium text-emerald-700";
+            statusText.innerText = "Berjaya! RPH anda telah direkodkan.";
+            document.getElementById("uploadForm").reset();
+            await loadData();
+          }
+        } catch (err) {
+          statusText.className = "mt-3 text-sm font-medium text-rose-700";
+          statusText.innerText = "Ralat semasa muat naik: " + err;
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "Hantar RPH";
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Fungsi Pentadbir
+    function bukaModalAdmin() {
+      document.getElementById("modalAdmin").classList.remove("hidden");
+      document.getElementById("modalAdmin").classList.add("flex");
+    }
+    function tutupModalAdmin() {
+      document.getElementById("modalAdmin").classList.add("hidden");
+      document.getElementById("modalAdmin").classList.remove("flex");
+    }
+    function sahkanAdmin() {
+      const ic = document.getElementById("inputIC").value.trim();
+      if (!ic) return;
+      adminIC = ic;
+      tutupModalAdmin();
+      document.getElementById("adminPanel").innerHTML = `<span class="bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg">Mod Pentadbir Aktif</span>`;
+      document.querySelectorAll(".admin-col").forEach(el => el.classList.remove("hidden"));
+      renderDashboard();
+    }
+
+    async function tandaSemak(minggu, namaGuru) {
+      if (!confirm(`Sahkan semakan RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "semak",
+            noIC: adminIC,
+            minggu: minggu,
+            namaGuru: namaGuru
+          })
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          alert("Berjaya disemak oleh: " + result.admin);
+          await loadData();
+        } else {
+          alert(result.message);
+          adminIC = null;
+          location.reload();
+        }
+      } catch (err) {
+        alert("Ralat sambungan: " + err);
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
