@@ -6,7 +6,7 @@
   <title>e-RPH SJKC Pandan | Sistem Rekod Penghantaran RPH</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans">
+<body class="bg-slate-100 text-slate-800 font-sans pb-20">
 
   <!-- Header (Melekat di Atas / Sticky) -->
   <header class="sticky top-0 z-40 bg-blue-900 text-white py-4 shadow-lg">
@@ -40,7 +40,7 @@
       <h2 class="text-lg font-bold text-blue-900 mb-4 border-b pb-2">Penghantaran RPH Guru</h2>
       <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium mb-1">Nama Guru</label>
+          <label class="block text-sm font-medium mb-1">Nama Guru (Susunan A–Z)</label>
           <select id="selectGuru" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
             <option value="">-- Memuatkan senarai --</option>
           </select>
@@ -103,6 +103,9 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-slate-100 text-slate-700 text-sm border-b">
+              <th class="p-3 text-center admin-col hidden">
+                <input type="checkbox" id="checkAll" onchange="pilihSemua(this)" title="Pilih Semua Belum Disemak" class="w-4 h-4 accent-emerald-600 cursor-pointer">
+              </th>
               <th class="p-3">Bil</th>
               <th class="p-3">Nama Guru</th>
               <th class="p-3">Jawatan</th>
@@ -113,13 +116,28 @@
             </tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-200 text-sm">
-            <tr><td colspan="7" class="p-6 text-center text-slate-500">Memuatkan data dari pangkalan data...</td></tr>
+            <tr><td colspan="8" class="p-6 text-center text-slate-500">Memuatkan data dari pangkalan data...</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
   </main>
+
+  <!-- Bar Terapung Pengesahan Pukal Pentadbir -->
+  <div id="bulkActionBar" class="fixed bottom-0 inset-x-0 bg-slate-900 text-white py-3 px-4 shadow-2xl z-40 hidden">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div class="text-sm">
+        <span id="countSelected" class="font-bold text-amber-400 text-base">0</span> rekod guru dipilih untuk pengesahan semakan.
+      </div>
+      <div class="flex gap-2">
+        <button onclick="batalPilihan()" class="px-4 py-2 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold">Batal Pilihan</button>
+        <button id="btnSahkanPukal" onclick="sahkanPukal()" class="px-5 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-slate-900 rounded-lg font-bold shadow">
+          ✔ Sahkan Semua Pilihan
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal Log Masuk Pentadbir -->
   <div id="modalAdmin" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
@@ -146,7 +164,12 @@
       try {
         const res = await fetch(`${WEB_APP_URL}?action=getData`);
         const json = await res.json();
-        dataGuru = json.guru;
+        
+        // Susun senarai guru mengikut abjad (A-Z) berdasarkan Nama Guru
+        dataGuru = json.guru
+          .filter(g => g[1] && String(g[1]).trim() !== "")
+          .sort((a, b) => String(a[1]).trim().localeCompare(String(b[1]).trim(), 'ms'));
+          
         dataMinggu = json.minggu;
         dataRekod = json.rekod;
 
@@ -159,13 +182,17 @@
 
     function isiDropdown() {
       const selGuru = document.getElementById("selectGuru");
+      const nilaiSemasaGuru = selGuru.value;
       selGuru.innerHTML = '<option value="">-- Pilih Nama Anda --</option>';
       dataGuru.forEach(g => {
-        if (g[1]) selGuru.innerHTML += `<option value="${g[1]}">${g[1]}</option>`;
+        selGuru.innerHTML += `<option value="${g[1]}">${g[1]}</option>`;
       });
+      if (nilaiSemasaGuru) selGuru.value = nilaiSemasaGuru;
 
       const selMinggu = document.getElementById("selectMinggu");
       const filMinggu = document.getElementById("filterMinggu");
+      const nilaiSemasaFilter = filMinggu.value;
+      
       selMinggu.innerHTML = '';
       filMinggu.innerHTML = '';
       dataMinggu.forEach(m => {
@@ -174,19 +201,21 @@
           filMinggu.innerHTML += `<option value="${m[0]}">Minggu ${m[0]}</option>`;
         }
       });
+      if (nilaiSemasaFilter) filMinggu.value = nilaiSemasaFilter;
     }
 
     function renderDashboard() {
       const mingguDipilih = document.getElementById("filterMinggu").value;
       const tbody = document.getElementById("tableBody");
       tbody.innerHTML = "";
+      document.getElementById("checkAll").checked = false;
+      kemasKiniBarPukal();
 
       let hantar = 0, lewat = 0, belum = 0;
 
       dataGuru.forEach((g, index) => {
         const nama = g[1];
         const jawatan = g[2];
-        if (!nama) return;
 
         const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
 
@@ -194,6 +223,7 @@
         let tarikhHantar = "-";
         let statusSemakan = "-";
         let tindakanAdmin = "-";
+        let checkboxHtml = "";
 
         if (rekodGuru) {
           const status = rekodGuru[4];
@@ -223,23 +253,24 @@
             statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
           }
 
+          // Sediakan checkbox jika belum disemak
+          if (semakan !== "Telah Disemak") {
+            checkboxHtml = `<input type="checkbox" value="${nama}" onchange="kemasKiniBarPukal()" class="chk-semak w-4 h-4 accent-emerald-600 cursor-pointer">`;
+          }
+
           const pecahUrl = String(linkFail).split("\n").filter(u => u.trim());
           let butangFailHtml = pecahUrl.map((url, i) => 
             `<a href="${url.trim()}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
           ).join(" ");
 
-          let butangTindakan = "";
-          if (semakan !== "Telah Disemak") {
-            butangTindakan += `<button onclick="tandaSemak('${mingguDipilih}', '${nama}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-xs font-semibold">✔ Sahkan</button>`;
-          }
-          if (semakan !== "Perlu Pembetulan") {
-            butangTindakan += `<button onclick="pulangkanBahan('${mingguDipilih}', '${nama}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-xs font-semibold">↩ Pulangkan</button>`;
-          }
+          let butangPulangkan = semakan !== "Perlu Pembetulan"
+            ? `<button onclick="pulangkanBahan('${mingguDipilih}', '${nama}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-xs font-semibold">↩ Pulangkan</button>`
+            : "";
 
           tindakanAdmin = `
-            <div class="flex flex-col items-center justify-center gap-1.5">
-              <div class="flex flex-wrap justify-center gap-1">${butangFailHtml}</div>
-              <div class="flex flex-wrap justify-center gap-1">${butangTindakan}</div>
+            <div class="flex flex-wrap items-center justify-center gap-1.5">
+              ${butangFailHtml}
+              ${butangPulangkan}
             </div>
           `;
         } else {
@@ -248,6 +279,7 @@
 
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
+            <td class="p-3 text-center admin-col ${adminIC ? '' : 'hidden'}">${checkboxHtml}</td>
             <td class="p-3 text-slate-500">${index + 1}</td>
             <td class="p-3 font-medium text-slate-900">${nama}</td>
             <td class="p-3 text-xs text-slate-600">${jawatan}</td>
@@ -264,111 +296,56 @@
       document.getElementById("statBelum").innerText = belum;
     }
 
-    function bacaFailBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({
-          fileName: file.name,
-          mimeType: file.type,
-          fileData: reader.result.split(",")[1]
-        });
-        reader.onerror = error => reject(error);
-        reader.readAsDataURL(file);
-      });
+    // Fungsi Kawalan Pilihan Pukal (Checkbox)
+    function pilihSemua(masterCheckbox) {
+      const semuaChk = document.querySelectorAll(".chk-semak");
+      semuaChk.forEach(cb => cb.checked = masterCheckbox.checked);
+      kemasKiniBarPukal();
     }
 
-    document.getElementById("uploadForm").addEventListener("submit", async function(e) {
-      e.preventDefault();
-      const namaGuru = document.getElementById("selectGuru").value;
-      const minggu = document.getElementById("selectMinggu").value;
-      const pinIC = document.getElementById("pinIC").value.trim();
-      const filesInput = document.getElementById("fileRPH").files;
+    function batalPilihan() {
+      document.getElementById("checkAll").checked = false;
+      document.querySelectorAll(".chk-semak").forEach(cb => cb.checked = false);
+      kemasKiniBarPukal();
+    }
 
-      if (filesInput.length === 0) return;
-
-      const sudahHantar = dataRekod.some(r => r[1] == minggu && r[2] === namaGuru);
-      if (sudahHantar) {
-        const sahGanti = confirm(`Rekod RPH anda untuk Minggu ${minggu} sudah wujud.\n\nAdakah anda pasti mahu MENGGANTIKAN (overwrite) fail lama dengan fail baharu ini?`);
-        if (!sahGanti) return;
+    function kemasKiniBarPukal() {
+      const dipilih = document.querySelectorAll(".chk-semak:checked").length;
+      const bar = document.getElementById("bulkActionBar");
+      document.getElementById("countSelected").innerText = dipilih;
+      
+      if (dipilih > 0 && adminIC) {
+        bar.classList.remove("hidden");
+      } else {
+        bar.classList.add("hidden");
       }
+    }
 
-      const btn = document.getElementById("btnHantar");
-      const statusText = document.getElementById("statusUpload");
+    async function sahkanPukal() {
+      const minggu = document.getElementById("filterMinggu").value;
+      const senaraiGuru = Array.from(document.querySelectorAll(".chk-semak:checked")).map(cb => cb.value);
 
+      if (senaraiGuru.length === 0) return;
+      if (!confirm(`Sahkan semakan secara serentak untuk ${senaraiGuru.length} orang guru bagi Minggu ${minggu}?`)) return;
+
+      const btn = document.getElementById("btnSahkanPukal");
       btn.disabled = true;
-      btn.innerText = `Mengesahkan & Memuat Naik...`;
-      statusText.classList.remove("hidden");
-      statusText.className = "mt-3 text-sm font-medium text-blue-700";
-      statusText.innerText = `Sila tunggu, sedang mengesahkan identiti & menghantar fail...`;
+      btn.innerText = "Sedang Menyimpan...";
 
-      try {
-        const senaraiFail = await Promise.all(Array.from(filesInput).map(f => bacaFailBase64(f)));
-
-        const payload = {
-          action: "upload",
-          namaGuru: namaGuru,
-          pinIC: pinIC,
-          minggu: minggu,
-          files: senaraiFail
-        };
-
-        const res = await fetch(WEB_APP_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-
-        if (result.status === "success") {
-          statusText.className = "mt-3 text-sm font-medium text-emerald-700";
-          statusText.innerText = `Berjaya! ${filesInput.length} fail RPH telah direkodkan.`;
-          document.getElementById("uploadForm").reset();
-          await loadData();
-        } else {
-          statusText.className = "mt-3 text-sm font-medium text-rose-700";
-          statusText.innerText = result.message;
-        }
-      } catch (err) {
-        statusText.className = "mt-3 text-sm font-medium text-rose-700";
-        statusText.innerText = "Ralat semasa muat naik: " + err;
-      } finally {
-        btn.disabled = false;
-        btn.innerText = "Hantar RPH";
-      }
-    });
-
-    function bukaModalAdmin() {
-      document.getElementById("modalAdmin").classList.remove("hidden");
-      document.getElementById("modalAdmin").classList.add("flex");
-    }
-    function tutupModalAdmin() {
-      document.getElementById("modalAdmin").classList.add("hidden");
-      document.getElementById("modalAdmin").classList.remove("flex");
-    }
-    function sahkanAdmin() {
-      const ic = document.getElementById("inputIC").value.trim();
-      if (!ic) return;
-      adminIC = ic;
-      tutupModalAdmin();
-      document.getElementById("adminPanel").innerHTML = `<span class="bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg">Mod Pentadbir Aktif</span>`;
-      document.querySelectorAll(".admin-col").forEach(el => el.classList.remove("hidden"));
-      renderDashboard();
-    }
-
-    async function tandaSemak(minggu, namaGuru) {
-      if (!confirm(`Sahkan semakan RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
       try {
         const res = await fetch(WEB_APP_URL, {
           method: "POST",
           body: JSON.stringify({
-            action: "semak",
+            action: "semakPukal",
             noIC: adminIC,
             minggu: minggu,
-            namaGuru: namaGuru
+            senaraiGuru: senaraiGuru
           })
         });
         const result = await res.json();
+
         if (result.status === "success") {
-          alert("Berjaya disemak oleh: " + result.admin);
+          alert(`Berjaya! ${senaraiGuru.length} rekod telah disahkan oleh ${result.admin}.`);
           await loadData();
         } else {
           alert(result.message);
@@ -378,42 +355,3 @@
       } catch (err) {
         alert("Ralat sambungan: " + err);
       }
-    }
-
-    async function pulangkanBahan(minggu, namaGuru) {
-      const catatan = prompt(`Pulangkan RPH ${namaGuru} (Minggu ${minggu}).\n\nSila nyatakan sebab / kesalahan bahan untuk pembetulan guru:`);
-      if (catatan === null) return; // Batal jika tekan Cancel
-      if (catatan.trim() === "") {
-        alert("Sila masukkan catatan kesalahan sebelum memulangkan bahan.");
-        return;
-      }
-
-      try {
-        const res = await fetch(WEB_APP_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "pulangkan",
-            noIC: adminIC,
-            minggu: minggu,
-            namaGuru: namaGuru,
-            catatan: catatan.trim()
-          })
-        });
-        const result = await res.json();
-        if (result.status === "success") {
-          alert("Bahan telah dipulangkan untuk pembetulan oleh: " + result.admin);
-          await loadData();
-        } else {
-          alert(result.message);
-          adminIC = null;
-          location.reload();
-        }
-      } catch (err) {
-        alert("Ralat sambungan: " + err);
-      }
-    }
-
-    loadData();
-  </script>
-</body>
-</html>
