@@ -76,9 +76,21 @@
           <h2 class="text-lg font-bold text-blue-900">Status Penghantaran Mingguan</h2>
           <p class="text-xs text-slate-500">Tarikh akhir penghantaran adalah pada setiap hari Ahad jam 11:59 malam.</p>
         </div>
-        <div class="flex items-center gap-3">
-          <label class="text-sm font-semibold">Paparan Minggu:</label>
-          <select id="filterMinggu" onchange="renderDashboard()" class="border border-slate-300 rounded-lg p-2 font-semibold text-blue-900 bg-blue-50"></select>
+        
+        <!-- Kawalan Penapis (Minggu & Sesi) -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold">Sesi:</label>
+            <select id="filterSesi" onchange="renderDashboard()" class="border border-slate-300 rounded-lg p-2 font-semibold text-blue-900 bg-blue-50">
+              <option value="SEMUA">Semua Sesi</option>
+              <option value="PAGI">PAGI</option>
+              <option value="PETANG">PETANG</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold">Minggu:</label>
+            <select id="filterMinggu" onchange="renderDashboard()" class="border border-slate-300 rounded-lg p-2 font-semibold text-blue-900 bg-blue-50"></select>
+          </div>
         </div>
       </div>
 
@@ -109,6 +121,7 @@
               <th class="p-3">Bil</th>
               <th class="p-3">Nama Guru</th>
               <th class="p-3">Jawatan</th>
+              <th class="p-3">Sesi</th>
               <th class="p-3">Status Hantar</th>
               <th class="p-3">Tarikh / Masa</th>
               <th class="p-3">Status Semakan</th>
@@ -116,7 +129,7 @@
             </tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-200 text-sm">
-            <tr><td colspan="8" class="p-6 text-center text-slate-500">Memuatkan data dari pangkalan data...</td></tr>
+            <tr><td colspan="9" class="p-6 text-center text-slate-500">Memuatkan data dari pangkalan data...</td></tr>
           </tbody>
         </table>
       </div>
@@ -205,18 +218,33 @@
 
     function renderDashboard() {
       const mingguDipilih = document.getElementById("filterMinggu").value;
+      const sesiDipilih = document.getElementById("filterSesi").value;
       const tbody = document.getElementById("tableBody");
       tbody.innerHTML = "";
       document.getElementById("checkAll").checked = false;
       kemasKiniBarPukal();
 
+      // Tapis senarai guru mengikut sesi yang dipilih
+      const guruDitapis = dataGuru.filter(g => {
+        if (sesiDipilih === "SEMUA") return true;
+        const sesiGuru = g[3] ? String(g[3]).trim().toUpperCase() : "";
+        return sesiGuru === sesiDipilih;
+      });
+
       let hantar = 0, lewat = 0, belum = 0;
 
-      dataGuru.forEach((g, index) => {
+      guruDitapis.forEach((g, index) => {
         const nama = g[1];
         const jawatan = g[2];
+        const sesi = g[3] ? String(g[3]).trim().toUpperCase() : "-";
 
         const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
+
+        let badgeSesi = sesi === "PAGI" 
+          ? `<span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-100 text-sky-800">PAGI</span>`
+          : sesi === "PETANG"
+          ? `<span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-800">PETANG</span>`
+          : `<span class="text-xs text-slate-400">-</span>`;
 
         let badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">Belum Hantar</span>`;
         let tarikhHantar = "-";
@@ -281,6 +309,7 @@
             <td class="p-3 text-slate-500">${index + 1}</td>
             <td class="p-3 font-medium text-slate-900">${nama}</td>
             <td class="p-3 text-xs text-slate-600">${jawatan}</td>
+            <td class="p-3">${badgeSesi}</td>
             <td class="p-3">${badgeStatus}</td>
             <td class="p-3 text-xs text-slate-600">${tarikhHantar}</td>
             <td class="p-3 text-xs">${statusSemakan}</td>
