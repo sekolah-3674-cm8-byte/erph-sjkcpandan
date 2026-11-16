@@ -35,14 +35,19 @@
 
   <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
-    <!-- Banner Petunjuk Minggu Semasa & Countdown -->
+    <!-- Banner Petunjuk Minggu Perlu Hantar & Countdown -->
     <section id="bannerMingguSemasa" class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-5 rounded-xl shadow-md border border-blue-700 flex flex-col md:flex-row justify-between items-center gap-4">
       <div class="text-center md:text-left">
-        <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded uppercase tracking-wider">
-          Status Semasa
-        </span>
-        <h2 id="teksMingguSemasa" class="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">
-          Mengesan Minggu Semasa...
+        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
+          <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded uppercase tracking-wider">
+            Sasaran Penghantaran
+          </span>
+          <span id="badgeMingguSemasa" class="bg-blue-700/80 text-blue-100 text-xs font-medium px-2.5 py-1 rounded border border-blue-500/40">
+            Minggu Persekolahan Semasa: --
+          </span>
+        </div>
+        <h2 id="teksMingguPerluHantar" class="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">
+          Mengesan Minggu Penghantaran...
         </h2>
         <p id="teksTarikhAkhir" class="text-blue-200 text-xs md:text-sm mt-1">
           Sila tunggu sebentar...
@@ -255,76 +260,70 @@
 
     function aktifkanMingguSemasaDanCountdown() {
       const sekarang = new Date();
-      let mingguAktif = null;
-      let tarikhTamatAktif = null;
+      const senaraiBernombor = dataMinggu.filter(m => m[0] && m[1] && !isNaN(Number(m[0])));
+      if (senaraiBernombor.length === 0) return;
 
-      // Cari minggu bernombor (1-42) yang tarikh akhirnya belum tamat (terdekat dengan hari ini)
-      for (let i = 0; i < dataMinggu.length; i++) {
-        const kodMinggu = dataMinggu[i][0];
-        const tarikhMentah = dataMinggu[i][1];
-        if (!kodMinggu || !tarikhMentah || isNaN(Number(kodMinggu))) continue;
+      let indeksSemasa = senaraiBernombor.length - 1;
 
-        const tarikhAhad = new Date(tarikhMentah);
+      // Cari minggu persekolahan semasa
+      for (let i = 0; i < senaraiBernombor.length; i++) {
+        const tarikhAhad = new Date(senaraiBernombor[i][1]);
         tarikhAhad.setHours(23, 59, 59, 999);
 
         if (sekarang <= tarikhAhad) {
-          mingguAktif = kodMinggu;
-          tarikhTamatAktif = tarikhAhad;
+          indeksSemasa = i;
           break;
         }
       }
 
-      // Jika semua minggu tahun ini telah tamat, ambil minggu terakhir
-      if (!mingguAktif) {
-        const senaraiBernombor = dataMinggu.filter(m => m[0] && !isNaN(Number(m[0])));
-        if (senaraiBernombor.length > 0) {
-          const terakhir = senaraiBernombor[senaraiBernombor.length - 1];
-          mingguAktif = terakhir[0];
-          tarikhTamatAktif = new Date(terakhir[1]);
-          tarikhTamatAktif.setHours(23, 59, 59, 999);
-        }
+      const mingguSemasa = senaraiBernombor[indeksSemasa][0];
+      
+      // Minggu yang perlu dihantar = Minggu Semasa + 1 (jika belum mencapai minggu terakhir)
+      const indeksPerluHantar = Math.min(indeksSemasa + 1, senaraiBernombor.length - 1);
+      const mingguPerluHantar = senaraiBernombor[indeksPerluHantar][0];
+      const tarikhTamatHantar = new Date(senaraiBernombor[indeksPerluHantar][1]);
+      tarikhTamatHantar.setHours(23, 59, 59, 999);
+
+      document.getElementById("badgeMingguSemasa").innerText = `Minggu Persekolahan Semasa: Minggu ${mingguSemasa}`;
+      document.getElementById("teksMingguPerluHantar").innerText = `RPH YANG PERLU DIHANTAR: MINGGU ${mingguPerluHantar}`;
+      
+      const formatTarikh = tarikhTamatHantar.toLocaleDateString('ms-MY', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      });
+      document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: ${formatTarikh} (11:59 Malam)`;
+
+      // Tetapkan dropdown kepada minggu yang perlu dihantar secara automatik
+      if (kaliPertamaMuat) {
+        document.getElementById("selectMinggu").value = mingguPerluHantar;
+        document.getElementById("filterMinggu").value = mingguPerluHantar;
+        kaliPertamaMuat = false;
       }
 
-      if (mingguAktif && tarikhTamatAktif) {
-        document.getElementById("teksMingguSemasa").innerText = `MINGGU SEMASA: MINGGU ${mingguAktif}`;
-        const formatTarikh = tarikhTamatAktif.toLocaleDateString('ms-MY', {
-          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-        });
-        document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: Ahad, ${formatTarikh} (11:59 Malam)`;
+      // Mulakan undur masa setiap 1 saat
+      if (pemasaCountdown) clearInterval(pemasaCountdown);
+      
+      const kemasKiniJam = () => {
+        const kini = new Date().getTime();
+        const baki = tarikhTamatHantar.getTime() - kini;
+        const elTimer = document.getElementById("countdownTimer");
 
-        // Tetapkan dropdown kepada minggu semasa secara automatik semasa mula buka laman
-        if (kaliPertamaMuat) {
-          document.getElementById("selectMinggu").value = mingguAktif;
-          document.getElementById("filterMinggu").value = mingguAktif;
-          kaliPertamaMuat = false;
+        if (baki <= 0) {
+          elTimer.innerHTML = `<span class="text-rose-400">TEMPOH TAMAT</span>`;
+          clearInterval(pemasaCountdown);
+          return;
         }
 
-        // Mulakan undur masa setiap 1 saat
-        if (pemasaCountdown) clearInterval(pemasaCountdown);
-        
-        const kemasKiniJam = () => {
-          const kini = new Date().getTime();
-          const baki = tarikhTamatAktif.getTime() - kini;
-          const elTimer = document.getElementById("countdownTimer");
+        const hari = Math.floor(baki / (1000 * 60 * 60 * 24));
+        const jam = Math.floor((baki % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minit = Math.floor((baki % (1000 * 60 * 60)) / (1000 * 60));
+        const saat = Math.floor((baki % (1000 * 60)) / 1000);
 
-          if (baki <= 0) {
-            elTimer.innerHTML = `<span class="text-rose-400">TEMPOH TAMAT</span>`;
-            clearInterval(pemasaCountdown);
-            return;
-          }
+        const pad = (n) => String(n).padStart(2, '0');
+        elTimer.innerText = `${hari}H : ${pad(jam)}J : ${pad(minit)}M : ${pad(saat)}S`;
+      };
 
-          const hari = Math.floor(baki / (1000 * 60 * 60 * 24));
-          const jam = Math.floor((baki % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minit = Math.floor((baki % (1000 * 60 * 60)) / (1000 * 60));
-          const saat = Math.floor((baki % (1000 * 60)) / 1000);
-
-          const pad = (n) => String(n).padStart(2, '0');
-          elTimer.innerText = `${hari}H : ${pad(jam)}J : ${pad(minit)}M : ${pad(saat)}S`;
-        };
-
-        kemasKiniJam();
-        pemasaCountdown = setInterval(kemasKiniJam, 1000);
-      }
+      kemasKiniJam();
+      pemasaCountdown = setInterval(kemasKiniJam, 1000);
     }
 
     function renderDashboard() {
