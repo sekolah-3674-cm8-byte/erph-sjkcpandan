@@ -33,7 +33,32 @@
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Banner Petunjuk Minggu Semasa & Countdown -->
+    <section id="bannerMingguSemasa" class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-5 rounded-xl shadow-md border border-blue-700 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="text-center md:text-left">
+        <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded uppercase tracking-wider">
+          Status Semasa
+        </span>
+        <h2 id="teksMingguSemasa" class="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">
+          Mengesan Minggu Semasa...
+        </h2>
+        <p id="teksTarikhAkhir" class="text-blue-200 text-xs md:text-sm mt-1">
+          Sila tunggu sebentar...
+        </p>
+      </div>
+
+      <!-- Kotak Countdown -->
+      <div class="bg-slate-900/60 border border-blue-400/30 rounded-xl px-5 py-3 text-center min-w-[260px]">
+        <p class="text-[11px] text-amber-300 uppercase font-semibold tracking-wider mb-1">
+          Baki Masa Penghantaran
+        </p>
+        <div id="countdownTimer" class="text-xl md:text-2xl font-mono font-bold text-white tracking-wider">
+          --H : --J : --M : --S
+        </div>
+      </div>
+    </section>
 
     <!-- Borang Muat Naik Guru -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -181,6 +206,8 @@
     let dataMinggu = [];
     let dataRekod = [];
     let adminIC = null;
+    let pemasaCountdown = null;
+    let kaliPertamaMuat = true;
 
     async function loadData() {
       try {
@@ -195,6 +222,7 @@
         dataRekod = json.rekod;
 
         isiDropdown();
+        aktifkanMingguSemasaDanCountdown();
         renderDashboard();
       } catch (err) {
         alert("Gagal menyambung ke pangkalan data: " + err);
@@ -225,6 +253,80 @@
       if (nilaiSemasaFilter) filMinggu.value = nilaiSemasaFilter;
     }
 
+    function aktifkanMingguSemasaDanCountdown() {
+      const sekarang = new Date();
+      let mingguAktif = null;
+      let tarikhTamatAktif = null;
+
+      // Cari minggu bernombor (1-42) yang tarikh akhirnya belum tamat (terdekat dengan hari ini)
+      for (let i = 0; i < dataMinggu.length; i++) {
+        const kodMinggu = dataMinggu[i][0];
+        const tarikhMentah = dataMinggu[i][1];
+        if (!kodMinggu || !tarikhMentah || isNaN(Number(kodMinggu))) continue;
+
+        const tarikhAhad = new Date(tarikhMentah);
+        tarikhAhad.setHours(23, 59, 59, 999);
+
+        if (sekarang <= tarikhAhad) {
+          mingguAktif = kodMinggu;
+          tarikhTamatAktif = tarikhAhad;
+          break;
+        }
+      }
+
+      // Jika semua minggu tahun ini telah tamat, ambil minggu terakhir
+      if (!mingguAktif) {
+        const senaraiBernombor = dataMinggu.filter(m => m[0] && !isNaN(Number(m[0])));
+        if (senaraiBernombor.length > 0) {
+          const terakhir = senaraiBernombor[senaraiBernombor.length - 1];
+          mingguAktif = terakhir[0];
+          tarikhTamatAktif = new Date(terakhir[1]);
+          tarikhTamatAktif.setHours(23, 59, 59, 999);
+        }
+      }
+
+      if (mingguAktif && tarikhTamatAktif) {
+        document.getElementById("teksMingguSemasa").innerText = `MINGGU SEMASA: MINGGU ${mingguAktif}`;
+        const formatTarikh = tarikhTamatAktif.toLocaleDateString('ms-MY', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        });
+        document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: Ahad, ${formatTarikh} (11:59 Malam)`;
+
+        // Tetapkan dropdown kepada minggu semasa secara automatik semasa mula buka laman
+        if (kaliPertamaMuat) {
+          document.getElementById("selectMinggu").value = mingguAktif;
+          document.getElementById("filterMinggu").value = mingguAktif;
+          kaliPertamaMuat = false;
+        }
+
+        // Mulakan undur masa setiap 1 saat
+        if (pemasaCountdown) clearInterval(pemasaCountdown);
+        
+        const kemasKiniJam = () => {
+          const kini = new Date().getTime();
+          const baki = tarikhTamatAktif.getTime() - kini;
+          const elTimer = document.getElementById("countdownTimer");
+
+          if (baki <= 0) {
+            elTimer.innerHTML = `<span class="text-rose-400">TEMPOH TAMAT</span>`;
+            clearInterval(pemasaCountdown);
+            return;
+          }
+
+          const hari = Math.floor(baki / (1000 * 60 * 60 * 24));
+          const jam = Math.floor((baki % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minit = Math.floor((baki % (1000 * 60 * 60)) / (1000 * 60));
+          const saat = Math.floor((baki % (1000 * 60)) / 1000);
+
+          const pad = (n) => String(n).padStart(2, '0');
+          elTimer.innerText = `${hari}H : ${pad(jam)}J : ${pad(minit)}M : ${pad(saat)}S`;
+        };
+
+        kemasKiniJam();
+        pemasaCountdown = setInterval(kemasKiniJam, 1000);
+      }
+    }
+
     function renderDashboard() {
       const mingguDipilih = document.getElementById("filterMinggu").value;
       const sesiDipilih = document.getElementById("filterSesi").value;
@@ -234,7 +336,6 @@
       document.getElementById("checkAll").checked = false;
       kemasKiniBarPukal();
 
-      // Tapis senarai guru mengikut sesi yang dipilih
       const guruIkutSesi = dataGuru.filter(g => {
         if (sesiDipilih === "SEMUA") return true;
         const sesiGuru = g[3] ? String(g[3]).trim().toUpperCase() : "";
@@ -251,7 +352,6 @@
 
         const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
 
-        // Tentukan status semasa guru & kira statistik keseluruhan sesi
         let statusSemasa = "Belum Hantar";
         if (rekodGuru) {
           statusSemasa = rekodGuru[4] === "Hantar" ? "Hantar" : "Lewat";
@@ -261,7 +361,6 @@
           belum++;
         }
 
-        // Tapis paparan baris mengikut dropdown Status
         if (statusDipilih !== "SEMUA" && statusSemasa !== statusDipilih) {
           return;
         }
@@ -471,6 +570,7 @@
           statusText.className = "mt-3 text-sm font-medium text-emerald-700";
           statusText.innerText = `Berjaya! ${filesInput.length} fail RPH telah direkodkan.`;
           document.getElementById("uploadForm").reset();
+          aktifkanMingguSemasaDanCountdown();
           await loadData();
         } else {
           statusText.className = "mt-3 text-sm font-medium text-rose-700";
