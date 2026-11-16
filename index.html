@@ -38,30 +38,34 @@
     <!-- Borang Muat Naik Guru -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <h2 class="text-lg font-bold text-blue-900 mb-4 border-b pb-2">Penghantaran RPH Guru</h2>
-      <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-        <div>
+      <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        <div class="md:col-span-2">
           <label class="block text-sm font-medium mb-1">Nama Guru</label>
           <select id="selectGuru" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
             <option value="">-- Memuatkan senarai --</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Minggu Persekolahan</label>
+          <label class="block text-sm font-medium mb-1">4 Digit Akhir No. IC</label>
+          <input type="password" id="pinIC" maxlength="4" pattern="\d{4}" placeholder="Contoh: 5018" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Minggu</label>
           <select id="selectMinggu" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
-            <option value="">-- Pilih Minggu --</option>
+            <option value="">-- Pilih --</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Fail RPH (Boleh pilih &gt;1 fail)</label>
+          <label class="block text-sm font-medium mb-1">Fail RPH (&ge;1 fail)</label>
           <input type="file" id="fileRPH" accept=".xlsx,.xls,.pdf,.doc,.docx" multiple required class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-slate-50">
         </div>
-        <div>
-          <button type="submit" id="btnHantar" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
+        <div class="md:col-span-5">
+          <button type="submit" id="btnHantar" class="w-full md:w-auto bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-8 rounded-lg shadow transition">
             Hantar RPH
           </button>
         </div>
       </form>
-      <p class="text-xs text-slate-500 mt-2">* Tip: Anda boleh memilih lebih daripada satu fail serentak (tekan Ctrl / pilih banyak fail) atau menghantar fail tambahan secara berasingan pada minggu yang sama.</p>
+      <p class="text-xs text-slate-500 mt-3">* Pengesahan 4 digit terakhir No. IC diperlukan untuk mengelakkan kesilapan muat naik pada nama guru lain.</p>
       <p id="statusUpload" class="mt-3 text-sm font-medium hidden"></p>
     </section>
 
@@ -184,22 +188,20 @@
         const jawatan = g[2];
         if (!nama) return;
 
-        // Kumpul semua rekod penghantaran guru bagi minggu tersebut
-        const semuaRekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama);
+        const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
 
         let badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">Belum Hantar</span>`;
         let tarikhHantar = "-";
         let statusSemakan = "-";
         let tindakanAdmin = "-";
 
-        if (semuaRekodGuru.length > 0) {
-          const rekodTerkini = semuaRekodGuru[semuaRekodGuru.length - 1];
-          const rekodPertama = semuaRekodGuru[0];
-          const status = rekodPertama[4]; // Ikut status penghantaran pertama
-          const semakan = rekodTerkini[5];
-          const penyemak = rekodTerkini[6];
+        if (rekodGuru) {
+          const status = rekodGuru[4];
+          const linkFail = rekodGuru[3];
+          const semakan = rekodGuru[5];
+          const penyemak = rekodGuru[6];
 
-          tarikhHantar = new Date(rekodTerkini[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
+          tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
 
           if (status === "Hantar") {
             hantar++;
@@ -215,17 +217,9 @@
             statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
           }
 
-          // Kumpulkan semua pautan fail (sama ada dihantar serentak atau berasingan)
-          let semuaPautan = [];
-          semuaRekodGuru.forEach(r => {
-            if (r[3]) {
-              const pecahUrl = String(r[3]).split("\n");
-              pecahUrl.forEach(u => { if (u.trim()) semuaPautan.push(u.trim()); });
-            }
-          });
-
-          let butangFailHtml = semuaPautan.map((url, i) => 
-            `<a href="${url}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
+          const pecahUrl = String(linkFail).split("\n").filter(u => u.trim());
+          let butangFailHtml = pecahUrl.map((url, i) => 
+            `<a href="${url.trim()}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
           ).join(" ");
 
           tindakanAdmin = `
@@ -256,7 +250,6 @@
       document.getElementById("statBelum").innerText = belum;
     }
 
-    // Fungsi baca fail ke Base64
     function bacaFailBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -270,28 +263,39 @@
       });
     }
 
-    // Muat Naik Berbilang Fail RPH
     document.getElementById("uploadForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-      const btn = document.getElementById("btnHantar");
-      const statusText = document.getElementById("statusUpload");
+      const namaGuru = document.getElementById("selectGuru").value;
+      const minggu = document.getElementById("selectMinggu").value;
+      const pinIC = document.getElementById("pinIC").value.trim();
       const filesInput = document.getElementById("fileRPH").files;
 
       if (filesInput.length === 0) return;
 
+      // Semak jika rekod minggu tersebut sudah wujud dan beri amaran overwrite
+      const sudahHantar = dataRekod.some(r => r[1] == minggu && r[2] === namaGuru);
+      if (sudahHantar) {
+        const sahGanti = confirm(`Rekod RPH anda untuk Minggu ${minggu} sudah wujud.\n\nAdakah anda pasti mahu MENGGANTIKAN (overwrite) fail lama dengan fail baharu ini?`);
+        if (!sahGanti) return;
+      }
+
+      const btn = document.getElementById("btnHantar");
+      const statusText = document.getElementById("statusUpload");
+
       btn.disabled = true;
-      btn.innerText = `Memuat Naik (${filesInput.length} fail)...`;
+      btn.innerText = `Mengesahkan & Memuat Naik...`;
       statusText.classList.remove("hidden");
       statusText.className = "mt-3 text-sm font-medium text-blue-700";
-      statusText.innerText = `Sila tunggu, ${filesInput.length} fail sedang dihantar ke Google Drive...`;
+      statusText.innerText = `Sila tunggu, sedang mengesahkan identiti & menghantar fail...`;
 
       try {
         const senaraiFail = await Promise.all(Array.from(filesInput).map(f => bacaFailBase64(f)));
 
         const payload = {
           action: "upload",
-          namaGuru: document.getElementById("selectGuru").value,
-          minggu: document.getElementById("selectMinggu").value,
+          namaGuru: namaGuru,
+          pinIC: pinIC,
+          minggu: minggu,
           files: senaraiFail
         };
 
@@ -306,6 +310,9 @@
           statusText.innerText = `Berjaya! ${filesInput.length} fail RPH telah direkodkan.`;
           document.getElementById("uploadForm").reset();
           await loadData();
+        } else {
+          statusText.className = "mt-3 text-sm font-medium text-rose-700";
+          statusText.innerText = result.message;
         }
       } catch (err) {
         statusText.className = "mt-3 text-sm font-medium text-rose-700";
@@ -316,7 +323,6 @@
       }
     });
 
-    // Fungsi Pentadbir
     function bukaModalAdmin() {
       document.getElementById("modalAdmin").classList.remove("hidden");
       document.getElementById("modalAdmin").classList.add("flex");
@@ -336,7 +342,7 @@
     }
 
     async function tandaSemak(minggu, namaGuru) {
-      if (!confirm(`Sahkan semakan semua RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
+      if (!confirm(`Sahkan semakan RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
       try {
         const res = await fetch(WEB_APP_URL, {
           method: "POST",
