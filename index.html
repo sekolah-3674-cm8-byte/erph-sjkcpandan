@@ -52,8 +52,8 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Fail RPH (Excel / PDF)</label>
-          <input type="file" id="fileRPH" accept=".xlsx,.xls,.pdf,.doc,.docx" required class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-slate-50">
+          <label class="block text-sm font-medium mb-1">Fail RPH (Boleh pilih &gt;1 fail)</label>
+          <input type="file" id="fileRPH" accept=".xlsx,.xls,.pdf,.doc,.docx" multiple required class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-slate-50">
         </div>
         <div>
           <button type="submit" id="btnHantar" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
@@ -61,6 +61,7 @@
           </button>
         </div>
       </form>
+      <p class="text-xs text-slate-500 mt-2">* Tip: Anda boleh memilih lebih daripada satu fail serentak (tekan Ctrl / pilih banyak fail) atau menghantar fail tambahan secara berasingan pada minggu yang sama.</p>
       <p id="statusUpload" class="mt-3 text-sm font-medium hidden"></p>
     </section>
 
@@ -137,7 +138,6 @@
     let dataRekod = [];
     let adminIC = null;
 
-    // Muat turun data semasa halaman dibuka
     async function loadData() {
       try {
         const res = await fetch(`${WEB_APP_URL}?action=getData`);
@@ -184,21 +184,22 @@
         const jawatan = g[2];
         if (!nama) return;
 
-        // Cari rekod guru bagi minggu dipilih (ambil rekod terkini jika hantar lebih sekali)
-        const rekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama).pop();
+        // Kumpul semua rekod penghantaran guru bagi minggu tersebut
+        const semuaRekodGuru = dataRekod.filter(r => r[1] == mingguDipilih && r[2] === nama);
 
         let badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">Belum Hantar</span>`;
         let tarikhHantar = "-";
         let statusSemakan = "-";
         let tindakanAdmin = "-";
 
-        if (rekodGuru) {
-          const status = rekodGuru[4];
-          const linkFail = rekodGuru[3];
-          const semakan = rekodGuru[5];
-          const penyemak = rekodGuru[6];
+        if (semuaRekodGuru.length > 0) {
+          const rekodTerkini = semuaRekodGuru[semuaRekodGuru.length - 1];
+          const rekodPertama = semuaRekodGuru[0];
+          const status = rekodPertama[4]; // Ikut status penghantaran pertama
+          const semakan = rekodTerkini[5];
+          const penyemak = rekodTerkini[6];
 
-          tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
+          tarikhHantar = new Date(rekodTerkini[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
 
           if (status === "Hantar") {
             hantar++;
@@ -214,10 +215,23 @@
             statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
           }
 
+          // Kumpulkan semua pautan fail (sama ada dihantar serentak atau berasingan)
+          let semuaPautan = [];
+          semuaRekodGuru.forEach(r => {
+            if (r[3]) {
+              const pecahUrl = String(r[3]).split("\n");
+              pecahUrl.forEach(u => { if (u.trim()) semuaPautan.push(u.trim()); });
+            }
+          });
+
+          let butangFailHtml = semuaPautan.map((url, i) => 
+            `<a href="${url}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
+          ).join(" ");
+
           tindakanAdmin = `
-            <div class="flex items-center justify-center gap-2">
-              <a href="${linkFail}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1 rounded text-xs">Buka RPH</a>
-              ${semakan !== "Telah Disemak" ? `<button onclick="tandaSemak('${mingguDipilih}', '${nama}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-xs">✔ Sahkan</button>` : ''}
+            <div class="flex flex-wrap items-center justify-center gap-1.5">
+              ${butangFailHtml}
+              ${semakan !== "Telah Disemak" ? `<button onclick="tandaSemak('${mingguDipilih}', '${nama}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-xs font-semibold">✔ Sahkan</button>` : ''}
             </div>
           `;
         } else {
@@ -242,52 +256,64 @@
       document.getElementById("statBelum").innerText = belum;
     }
 
-    // Muat Naik Fail RPH
-    document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    // Fungsi baca fail ke Base64
+    function bacaFailBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          fileName: file.name,
+          mimeType: file.type,
+          fileData: reader.result.split(",")[1]
+        });
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Muat Naik Berbilang Fail RPH
+    document.getElementById("uploadForm").addEventListener("submit", async function(e) {
       e.preventDefault();
       const btn = document.getElementById("btnHantar");
       const statusText = document.getElementById("statusUpload");
-      const file = document.getElementById("fileRPH").files[0];
+      const filesInput = document.getElementById("fileRPH").files;
+
+      if (filesInput.length === 0) return;
 
       btn.disabled = true;
-      btn.innerText = "Sedang Memuat Naik...";
+      btn.innerText = `Memuat Naik (${filesInput.length} fail)...`;
       statusText.classList.remove("hidden");
       statusText.className = "mt-3 text-sm font-medium text-blue-700";
-      statusText.innerText = "Sila tunggu, fail sedang dihantar ke Google Drive...";
+      statusText.innerText = `Sila tunggu, ${filesInput.length} fail sedang dihantar ke Google Drive...`;
 
-      const reader = new FileReader();
-      reader.onload = async function() {
-        const base64Data = reader.result.split(",")[1];
+      try {
+        const senaraiFail = await Promise.all(Array.from(filesInput).map(f => bacaFailBase64(f)));
+
         const payload = {
           action: "upload",
           namaGuru: document.getElementById("selectGuru").value,
           minggu: document.getElementById("selectMinggu").value,
-          fileName: file.name,
-          mimeType: file.type,
-          fileData: base64Data
+          files: senaraiFail
         };
 
-        try {
-          const res = await fetch(WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify(payload)
-          });
-          const result = await res.json();
-          if (result.status === "success") {
-            statusText.className = "mt-3 text-sm font-medium text-emerald-700";
-            statusText.innerText = "Berjaya! RPH anda telah direkodkan.";
-            document.getElementById("uploadForm").reset();
-            await loadData();
-          }
-        } catch (err) {
-          statusText.className = "mt-3 text-sm font-medium text-rose-700";
-          statusText.innerText = "Ralat semasa muat naik: " + err;
-        } finally {
-          btn.disabled = false;
-          btn.innerText = "Hantar RPH";
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+          statusText.className = "mt-3 text-sm font-medium text-emerald-700";
+          statusText.innerText = `Berjaya! ${filesInput.length} fail RPH telah direkodkan.`;
+          document.getElementById("uploadForm").reset();
+          await loadData();
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        statusText.className = "mt-3 text-sm font-medium text-rose-700";
+        statusText.innerText = "Ralat semasa muat naik: " + err;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Hantar RPH";
+      }
     });
 
     // Fungsi Pentadbir
@@ -310,7 +336,7 @@
     }
 
     async function tandaSemak(minggu, namaGuru) {
-      if (!confirm(`Sahkan semakan RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
+      if (!confirm(`Sahkan semakan semua RPH untuk ${namaGuru} (Minggu ${minggu})?`)) return;
       try {
         const res = await fetch(WEB_APP_URL, {
           method: "POST",
