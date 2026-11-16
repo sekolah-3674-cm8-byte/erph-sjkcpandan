@@ -38,14 +38,9 @@
     <!-- Banner Petunjuk Minggu Perlu Hantar & Countdown -->
     <section id="bannerMingguSemasa" class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-5 rounded-xl shadow-md border border-blue-700 flex flex-col md:flex-row justify-between items-center gap-4">
       <div class="text-center md:text-left">
-        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
-          <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded uppercase tracking-wider">
-            Sasaran Penghantaran
-          </span>
-          <span id="badgeMingguSemasa" class="bg-blue-700/80 text-blue-100 text-xs font-medium px-2.5 py-1 rounded border border-blue-500/40">
-            Minggu Persekolahan Semasa: --
-          </span>
-        </div>
+        <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded uppercase tracking-wider">
+          Sasaran Penghantaran
+        </span>
         <h2 id="teksMingguPerluHantar" class="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">
           Mengesan Minggu Penghantaran...
         </h2>
@@ -277,27 +272,20 @@
       }
 
       const mingguSemasa = senaraiBernombor[indeksSemasa][0];
-      
-      // Tarikh akhir & baki masa (countdown) mengikut hujung MINGGU SEMASA
       const tarikhTamatSemasa = new Date(senaraiBernombor[indeksSemasa][1]);
       tarikhTamatSemasa.setHours(23, 59, 59, 999);
-      
-      // Minggu yang perlu dihantar = Minggu Semasa + 1
-      const indeksPerluHantar = Math.min(indeksSemasa + 1, senaraiBernombor.length - 1);
-      const mingguPerluHantar = senaraiBernombor[indeksPerluHantar][0];
 
-      document.getElementById("badgeMingguSemasa").innerText = `Minggu Persekolahan Semasa: Minggu ${mingguSemasa}`;
-      document.getElementById("teksMingguPerluHantar").innerText = `RPH YANG PERLU DIHANTAR: MINGGU ${mingguPerluHantar}`;
+      document.getElementById("teksMingguPerluHantar").innerText = `RPH YANG PERLU DIHANTAR: MINGGU ${mingguSemasa}`;
       
       const formatTarikh = tarikhTamatSemasa.toLocaleDateString('ms-MY', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       });
       document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: ${formatTarikh} (11:59 Malam)`;
 
-      // Tetapkan dropdown kepada minggu yang perlu dihantar secara automatik
+      // Tetapkan dropdown kepada minggu semasa secara automatik
       if (kaliPertamaMuat) {
-        document.getElementById("selectMinggu").value = mingguPerluHantar;
-        document.getElementById("filterMinggu").value = mingguPerluHantar;
+        document.getElementById("selectMinggu").value = mingguSemasa;
+        document.getElementById("filterMinggu").value = mingguSemasa;
         kaliPertamaMuat = false;
       }
 
