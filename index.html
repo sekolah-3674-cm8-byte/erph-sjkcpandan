@@ -278,16 +278,18 @@
 
       const mingguSemasa = senaraiBernombor[indeksSemasa][0];
       
-      // Minggu yang perlu dihantar = Minggu Semasa + 1 (jika belum mencapai minggu terakhir)
+      // Tarikh akhir & baki masa (countdown) mengikut hujung MINGGU SEMASA
+      const tarikhTamatSemasa = new Date(senaraiBernombor[indeksSemasa][1]);
+      tarikhTamatSemasa.setHours(23, 59, 59, 999);
+      
+      // Minggu yang perlu dihantar = Minggu Semasa + 1
       const indeksPerluHantar = Math.min(indeksSemasa + 1, senaraiBernombor.length - 1);
       const mingguPerluHantar = senaraiBernombor[indeksPerluHantar][0];
-      const tarikhTamatHantar = new Date(senaraiBernombor[indeksPerluHantar][1]);
-      tarikhTamatHantar.setHours(23, 59, 59, 999);
 
       document.getElementById("badgeMingguSemasa").innerText = `Minggu Persekolahan Semasa: Minggu ${mingguSemasa}`;
       document.getElementById("teksMingguPerluHantar").innerText = `RPH YANG PERLU DIHANTAR: MINGGU ${mingguPerluHantar}`;
       
-      const formatTarikh = tarikhTamatHantar.toLocaleDateString('ms-MY', {
+      const formatTarikh = tarikhTamatSemasa.toLocaleDateString('ms-MY', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       });
       document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: ${formatTarikh} (11:59 Malam)`;
@@ -299,12 +301,12 @@
         kaliPertamaMuat = false;
       }
 
-      // Mulakan undur masa setiap 1 saat
+      // Mulakan undur masa setiap 1 saat mengikut tarikh tamat minggu semasa
       if (pemasaCountdown) clearInterval(pemasaCountdown);
       
       const kemasKiniJam = () => {
         const kini = new Date().getTime();
-        const baki = tarikhTamatHantar.getTime() - kini;
+        const baki = tarikhTamatSemasa.getTime() - kini;
         const elTimer = document.getElementById("countdownTimer");
 
         if (baki <= 0) {
