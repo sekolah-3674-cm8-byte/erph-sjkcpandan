@@ -165,7 +165,6 @@
         const res = await fetch(`${WEB_APP_URL}?action=getData`);
         const json = await res.json();
         
-        // Susun senarai guru mengikut abjad (A-Z) berdasarkan Nama Guru
         dataGuru = json.guru
           .filter(g => g[1] && String(g[1]).trim() !== "")
           .sort((a, b) => String(a[1]).trim().localeCompare(String(b[1]).trim(), 'ms'));
@@ -253,7 +252,6 @@
             statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
           }
 
-          // Sediakan checkbox jika belum disemak
           if (semakan !== "Telah Disemak") {
             checkboxHtml = `<input type="checkbox" value="${nama}" onchange="kemasKiniBarPukal()" class="chk-semak w-4 h-4 accent-emerald-600 cursor-pointer">`;
           }
@@ -296,7 +294,6 @@
       document.getElementById("statBelum").innerText = belum;
     }
 
-    // Fungsi Kawalan Pilihan Pukal (Checkbox)
     function pilihSemua(masterCheckbox) {
       const semuaChk = document.querySelectorAll(".chk-semak");
       semuaChk.forEach(cb => cb.checked = masterCheckbox.checked);
@@ -354,4 +351,136 @@
         }
       } catch (err) {
         alert("Ralat sambungan: " + err);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "✔ Sahkan Semua Pilihan";
       }
+    }
+
+    function bacaFailBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          fileName: file.name,
+          mimeType: file.type,
+          fileData: reader.result.split(",")[1]
+        });
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById("uploadForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const namaGuru = document.getElementById("selectGuru").value;
+      const minggu = document.getElementById("selectMinggu").value;
+      const pinIC = document.getElementById("pinIC").value.trim();
+      const filesInput = document.getElementById("fileRPH").files;
+
+      if (filesInput.length === 0) return;
+
+      const sudahHantar = dataRekod.some(r => r[1] == minggu && r[2] === namaGuru);
+      if (sudahHantar) {
+        const sahGanti = confirm(`Rekod RPH anda untuk Minggu ${minggu} sudah wujud.\n\nAdakah anda pasti mahu MENGGANTIKAN (overwrite) fail lama dengan fail baharu ini?`);
+        if (!sahGanti) return;
+      }
+
+      const btn = document.getElementById("btnHantar");
+      const statusText = document.getElementById("statusUpload");
+
+      btn.disabled = true;
+      btn.innerText = `Mengesahkan & Memuat Naik...`;
+      statusText.classList.remove("hidden");
+      statusText.className = "mt-3 text-sm font-medium text-blue-700";
+      statusText.innerText = `Sila tunggu, sedang mengesahkan identiti & menghantar fail...`;
+
+      try {
+        const senaraiFail = await Promise.all(Array.from(filesInput).map(f => bacaFailBase64(f)));
+
+        const payload = {
+          action: "upload",
+          namaGuru: namaGuru,
+          pinIC: pinIC,
+          minggu: minggu,
+          files: senaraiFail
+        };
+
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+          statusText.className = "mt-3 text-sm font-medium text-emerald-700";
+          statusText.innerText = `Berjaya! ${filesInput.length} fail RPH telah direkodkan.`;
+          document.getElementById("uploadForm").reset();
+          await loadData();
+        } else {
+          statusText.className = "mt-3 text-sm font-medium text-rose-700";
+          statusText.innerText = result.message;
+        }
+      } catch (err) {
+        statusText.className = "mt-3 text-sm font-medium text-rose-700";
+        statusText.innerText = "Ralat semasa muat naik: " + err;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Hantar RPH";
+      }
+    });
+
+    function bukaModalAdmin() {
+      document.getElementById("modalAdmin").classList.remove("hidden");
+      document.getElementById("modalAdmin").classList.add("flex");
+    }
+    function tutupModalAdmin() {
+      document.getElementById("modalAdmin").classList.add("hidden");
+      document.getElementById("modalAdmin").classList.remove("flex");
+    }
+    function sahkanAdmin() {
+      const ic = document.getElementById("inputIC").value.trim();
+      if (!ic) return;
+      adminIC = ic;
+      tutupModalAdmin();
+      document.getElementById("adminPanel").innerHTML = `<span class="bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg">Mod Pentadbir Aktif</span>`;
+      document.querySelectorAll(".admin-col").forEach(el => el.classList.remove("hidden"));
+      renderDashboard();
+    }
+
+    async function pulangkanBahan(minggu, namaGuru) {
+      const catatan = prompt(`Pulangkan RPH ${namaGuru} (Minggu ${minggu}).\n\nSila nyatakan sebab / kesalahan bahan untuk pembetulan guru:`);
+      if (catatan === null) return;
+      if (catatan.trim() === "") {
+        alert("Sila masukkan catatan kesalahan sebelum memulangkan bahan.");
+        return;
+      }
+
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "pulangkan",
+            noIC: adminIC,
+            minggu: minggu,
+            namaGuru: namaGuru,
+            catatan: catatan.trim()
+          })
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          alert("Bahan telah dipulangkan untuk pembetulan oleh: " + result.admin);
+          await loadData();
+        } else {
+          alert(result.message);
+          adminIC = null;
+          location.reload();
+        }
+      } catch (err) {
+        alert("Ralat sambungan: " + err);
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
