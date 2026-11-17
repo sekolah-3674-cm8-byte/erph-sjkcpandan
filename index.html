@@ -99,7 +99,7 @@
       <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div>
           <h2 class="text-lg font-bold text-blue-900">Status Penghantaran Mingguan</h2>
-          <p class="text-xs text-slate-500">Tarikh akhir penghantaran adalah pada setiap hari Ahad jam 11:59 malam.</p>
+          <p class="text-xs text-slate-500">Tarikh akhir penghantaran adalah pada setiap hari Sabtu jam 11:59 malam.</p>
         </div>
         
         <!-- Kawalan Penapis (Sesi, Status & Minggu) -->
@@ -119,6 +119,7 @@
               <option value="Hantar">Hantar</option>
               <option value="Lewat">Lewat</option>
               <option value="Belum Hantar">Belum Hantar</option>
+              <option value="Dikecualikan">Dikecualikan</option>
             </select>
           </div>
           <div class="flex items-center gap-2">
@@ -128,19 +129,23 @@
         </div>
       </div>
 
-      <!-- Ringkasan Statistik -->
-      <div class="grid grid-cols-3 gap-4 mb-6 text-center">
+      <!-- Ringkasan Statistik (4 Kotak) -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
         <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
           <p class="text-xs text-emerald-700 font-semibold uppercase">Hantar (Tepat Masa)</p>
           <p id="statHantar" class="text-2xl font-bold text-emerald-700">0</p>
         </div>
         <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg">
-          <p class="text-xs text-amber-700 font-semibold uppercase">Lewat (Selepas Ahad)</p>
+          <p class="text-xs text-amber-700 font-semibold uppercase">Lewat (Selepas Sabtu)</p>
           <p id="statLewat" class="text-2xl font-bold text-amber-700">0</p>
         </div>
         <div class="bg-rose-50 border border-rose-200 p-3 rounded-lg">
           <p class="text-xs text-rose-700 font-semibold uppercase">Belum Hantar</p>
           <p id="statBelum" class="text-2xl font-bold text-rose-700">0</p>
+        </div>
+        <div class="bg-slate-100 border border-slate-300 p-3 rounded-lg">
+          <p class="text-xs text-slate-700 font-semibold uppercase">Dikecualikan (Cuti/Rasmi)</p>
+          <p id="statKecuali" class="text-2xl font-bold text-slate-700">0</p>
         </div>
       </div>
 
@@ -158,7 +163,7 @@
               <th class="p-3">Sesi</th>
               <th class="p-3">Status Hantar</th>
               <th class="p-3">Tarikh / Masa</th>
-              <th class="p-3">Status Semakan</th>
+              <th class="p-3">Status Semakan / Catatan</th>
               <th class="p-3 text-center admin-col hidden">Tindakan Pentadbir</th>
             </tr>
           </thead>
@@ -260,12 +265,11 @@
 
       let indeksSemasa = senaraiBernombor.length - 1;
 
-      // Cari minggu persekolahan semasa
       for (let i = 0; i < senaraiBernombor.length; i++) {
-        const tarikhAhad = new Date(senaraiBernombor[i][1]);
-        tarikhAhad.setHours(23, 59, 59, 999);
+        const tarikhAkhir = new Date(senaraiBernombor[i][1]);
+        tarikhAkhir.setHours(23, 59, 59, 999);
 
-        if (sekarang <= tarikhAhad) {
+        if (sekarang <= tarikhAkhir) {
           indeksSemasa = i;
           break;
         }
@@ -282,14 +286,12 @@
       });
       document.getElementById("teksTarikhAkhir").innerText = `Tarikh Akhir Penghantaran: ${formatTarikh} (11:59 Malam)`;
 
-      // Tetapkan dropdown kepada minggu semasa secara automatik
       if (kaliPertamaMuat) {
         document.getElementById("selectMinggu").value = mingguSemasa;
         document.getElementById("filterMinggu").value = mingguSemasa;
         kaliPertamaMuat = false;
       }
 
-      // Mulakan undur masa setiap 1 saat mengikut tarikh tamat minggu semasa
       if (pemasaCountdown) clearInterval(pemasaCountdown);
       
       const kemasKiniJam = () => {
@@ -331,7 +333,7 @@
         return sesiGuru === sesiDipilih;
       });
 
-      let hantar = 0, lewat = 0, belum = 0;
+      let hantar = 0, lewat = 0, belum = 0, kecuali = 0;
       let bilPaparan = 0;
 
       guruIkutSesi.forEach(g => {
@@ -343,9 +345,16 @@
 
         let statusSemasa = "Belum Hantar";
         if (rekodGuru) {
-          statusSemasa = rekodGuru[4] === "Hantar" ? "Hantar" : "Lewat";
-          if (statusSemasa === "Hantar") hantar++;
-          else lewat++;
+          if (rekodGuru[4] === "Dikecualikan") {
+            statusSemasa = "Dikecualikan";
+            kecuali++;
+          } else if (rekodGuru[4] === "Hantar") {
+            statusSemasa = "Hantar";
+            hantar++;
+          } else {
+            statusSemasa = "Lewat";
+            lewat++;
+          }
         } else {
           belum++;
         }
@@ -365,7 +374,11 @@
         let badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">Belum Hantar</span>`;
         let tarikhHantar = "-";
         let statusSemakan = "-";
-        let tindakanAdmin = "-";
+        let tindakanAdmin = `
+          <button onclick="kecualikanGuru('${mingguDipilih}', '${nama}')" class="bg-slate-600 hover:bg-slate-700 text-white px-2.5 py-1 rounded text-xs font-semibold">
+            🏷 Kecualikan
+          </button>
+        `;
         let checkboxHtml = "";
 
         if (rekodGuru) {
@@ -374,44 +387,58 @@
           const penyemak = rekodGuru[6];
           const catatan = rekodGuru[7] && rekodGuru[7] !== "-" ? rekodGuru[7] : "";
 
-          tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
-
-          if (statusSemasa === "Hantar") {
-            badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Hantar</span>`;
-          } else {
-            badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lewat</span>`;
-          }
-
-          if (semakan === "Telah Disemak") {
-            statusSemakan = `<span class="text-emerald-700 font-semibold">✔ Disemak (${penyemak})</span>`;
-          } else if (semakan === "Perlu Pembetulan") {
+          if (statusSemasa === "Dikecualikan") {
+            badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800">Dikecualikan</span>`;
+            tarikhHantar = "-";
             statusSemakan = `
-              <div class="text-rose-700 font-semibold">⚠ Perlu Pembetulan</div>
-              <div class="text-[11px] text-slate-600 mt-0.5">Oleh ${penyemak}: "${catatan}"</div>
+              <div class="text-slate-700 font-semibold">🏷 Dikecualikan</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Sebab: "${catatan}" (Oleh ${penyemak})</div>
+            `;
+            tindakanAdmin = `
+              <button onclick="batalKecuali('${mingguDipilih}', '${nama}')" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded text-xs font-semibold">
+                ✖ Batal Kecuali
+              </button>
             `;
           } else {
-            statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
+            tarikhHantar = new Date(rekodGuru[0]).toLocaleString('ms-MY', { dateStyle: 'short', timeStyle: 'short' });
+
+            if (statusSemasa === "Hantar") {
+              badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Hantar</span>`;
+            } else {
+              badgeStatus = `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Lewat</span>`;
+            }
+
+            if (semakan === "Telah Disemak") {
+              statusSemakan = `<span class="text-emerald-700 font-semibold">✔ Disemak (${penyemak})</span>`;
+            } else if (semakan === "Perlu Pembetulan") {
+              statusSemakan = `
+                <div class="text-rose-700 font-semibold">⚠ Perlu Pembetulan</div>
+                <div class="text-[11px] text-slate-600 mt-0.5">Oleh ${penyemak}: "${catatan}"</div>
+              `;
+            } else {
+              statusSemakan = `<span class="text-slate-400 italic">Menunggu Semakan</span>`;
+            }
+
+            if (semakan !== "Telah Disemak") {
+              checkboxHtml = `<input type="checkbox" value="${nama}" onchange="kemasKiniBarPukal()" class="chk-semak w-4 h-4 accent-emerald-600 cursor-pointer">`;
+            }
+
+            const pecahUrl = String(linkFail).split("\n").filter(u => u.trim() && u.trim() !== "-");
+            let butangFailHtml = pecahUrl.map((url, i) => 
+              `<a href="${url.trim()}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
+            ).join(" ");
+
+            let butangPulangkan = semakan !== "Perlu Pembetulan"
+              ? `<button onclick="pulangkanBahan('${mingguDipilih}', '${nama}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-xs font-semibold">↩ Pulangkan</button>`
+              : "";
+
+            tindakanAdmin = `
+              <div class="flex flex-wrap items-center justify-center gap-1.5">
+                ${butangFailHtml}
+                ${butangPulangkan}
+              </div>
+            `;
           }
-
-          if (semakan !== "Telah Disemak") {
-            checkboxHtml = `<input type="checkbox" value="${nama}" onchange="kemasKiniBarPukal()" class="chk-semak w-4 h-4 accent-emerald-600 cursor-pointer">`;
-          }
-
-          const pecahUrl = String(linkFail).split("\n").filter(u => u.trim());
-          let butangFailHtml = pecahUrl.map((url, i) => 
-            `<a href="${url.trim()}" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded text-xs">Fail ${i + 1}</a>`
-          ).join(" ");
-
-          let butangPulangkan = semakan !== "Perlu Pembetulan"
-            ? `<button onclick="pulangkanBahan('${mingguDipilih}', '${nama}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded text-xs font-semibold">↩ Pulangkan</button>`
-            : "";
-
-          tindakanAdmin = `
-            <div class="flex flex-wrap items-center justify-center gap-1.5">
-              ${butangFailHtml}
-              ${butangPulangkan}
-            </div>
-          `;
         }
 
         tbody.innerHTML += `
@@ -436,6 +463,7 @@
       document.getElementById("statHantar").innerText = hantar;
       document.getElementById("statLewat").innerText = lewat;
       document.getElementById("statBelum").innerText = belum;
+      document.getElementById("statKecuali").innerText = kecuali;
     }
 
     function pilihSemua(masterCheckbox) {
@@ -501,6 +529,64 @@
       }
     }
 
+    async function kecualikanGuru(minggu, namaGuru) {
+      const sebab = prompt(`Tandakan ${namaGuru} sebagai DIKECUALIKAN bagi Minggu ${minggu}.\n\nSila nyatakan sebab pengecualian (Contoh: Cuti Bersalin, Cuti Sakit, Kursus Rasmi):`);
+      if (sebab === null) return;
+      if (sebab.trim() === "") {
+        alert("Sila masukkan sebab pengecualian terlebih dahulu.");
+        return;
+      }
+
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "kecualikan",
+            noIC: adminIC,
+            minggu: minggu,
+            namaGuru: namaGuru,
+            sebab: sebab.trim()
+          })
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          await loadData();
+        } else {
+          alert(result.message);
+          adminIC = null;
+          location.reload();
+        }
+      } catch (err) {
+        alert("Ralat sambungan: " + err);
+      }
+    }
+
+    async function batalKecuali(minggu, namaGuru) {
+      if (!confirm(`Batalkan status DIKECUALIKAN untuk ${namaGuru} (Minggu ${minggu}) dan kembalikan kepada Belum Hantar?`)) return;
+
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "batalKecuali",
+            noIC: adminIC,
+            minggu: minggu,
+            namaGuru: namaGuru
+          })
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          await loadData();
+        } else {
+          alert(result.message);
+          adminIC = null;
+          location.reload();
+        }
+      } catch (err) {
+        alert("Ralat sambungan: " + err);
+      }
+    }
+
     function bacaFailBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -523,7 +609,7 @@
 
       if (filesInput.length === 0) return;
 
-      const sudahHantar = dataRekod.some(r => r[1] == minggu && r[2] === namaGuru);
+      const sudahHantar = dataRekod.some(r => r[1] == minggu && r[2] === namaGuru && r[4] !== "Dikecualikan");
       if (sudahHantar) {
         const sahGanti = confirm(`Rekod RPH anda untuk Minggu ${minggu} sudah wujud.\n\nAdakah anda pasti mahu MENGGANTIKAN (overwrite) fail lama dengan fail baharu ini?`);
         if (!sahGanti) return;
