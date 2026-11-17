@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>e-RPH SJKC Pandan | Sistem Rekod Penghantaran RPH</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -72,7 +75,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">4 Digit Akhir No. IC</label>
-          <input type="password" id="pinIC" maxlength="4" pattern="\d{4}" placeholder="Contoh: 0000" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
+          <input type="password" id="pinIC" maxlength="4" pattern="\d{4}" placeholder="Contoh: 5018" required class="w-full border border-slate-300 rounded-lg p-2.5 bg-white">
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Minggu</label>
@@ -174,6 +177,10 @@
       </div>
     </section>
 
+    <footer class="text-center text-xs text-slate-400 pt-2">
+      &copy; 2026 Sistem Rekod Penghantaran RPH &bull; SJKC Pandan
+    </footer>
+
   </main>
 
   <!-- Bar Terapung Pengesahan Pukal Pentadbir -->
@@ -216,7 +223,7 @@
 
     async function loadData() {
       try {
-        const res = await fetch(`${WEB_APP_URL}?action=getData`);
+        const res = await fetch(`${WEB_APP_URL}?action=getData&t=${new Date().getTime()}`);
         const json = await res.json();
         
         dataGuru = json.guru
@@ -672,9 +679,31 @@
       const ic = document.getElementById("inputIC").value.trim();
       if (!ic) return;
       adminIC = ic;
+      document.getElementById("inputIC").value = "";
       tutupModalAdmin();
-      document.getElementById("adminPanel").innerHTML = `<span class="bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg">Mod Pentadbir Aktif</span>`;
+      document.getElementById("adminPanel").innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-2 rounded-lg shadow-sm">
+            Mod Pentadbir Aktif
+          </span>
+          <button onclick="keluarAdmin()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition">
+            Log Keluar
+          </button>
+        </div>
+      `;
       document.querySelectorAll(".admin-col").forEach(el => el.classList.remove("hidden"));
+      renderDashboard();
+    }
+
+    function keluarAdmin() {
+      adminIC = null;
+      batalPilihan();
+      document.getElementById("adminPanel").innerHTML = `
+        <button onclick="bukaModalAdmin()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold px-4 py-2 rounded-lg shadow transition">
+          Log Masuk Pentadbir
+        </button>
+      `;
+      document.querySelectorAll(".admin-col").forEach(el => el.classList.add("hidden"));
       renderDashboard();
     }
 
